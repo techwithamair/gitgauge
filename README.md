@@ -4,7 +4,7 @@ GitHub Profile Auditor and Beginner Issue Finder
 
 GitGauge scores your GitHub profile against recruiter-visible criteria, tells you
 what to fix, and finds beginner-friendly open-source issues to work on next.
-Runs as a terminal tool and as a Streamlit web app using the same core engine.
+The entire interface is a Streamlit browser app powered by a six-class Python engine.
 
 ---
 
@@ -51,10 +51,9 @@ tool closes its own loop.
 | Priority Recommendations | HIGH, MEDIUM, and LOW fixes with problem, reason, and action |
 | Recruiter Summary | Strengths and weaknesses in plain language |
 | Issue Finder | Searches GitHub for open good-first-issue tickets by language |
-| Approachability Ranking | Hand-written insertion sort ranking issues by comment count and age |
-| Caching with TTL | Caches profile data for 24 hours to avoid repeat API calls |
-| Terminal UI | Full formatted report with progress bars and aligned layout |
-| Streamlit Dashboard | Four-tab browser interface powered by the same core engine |
+| Approachability Ranking | Ranks issues by comment count and age |
+| AI Summary | Llama 3 via Groq summarises the score breakdown and recommendations |
+| Streamlit Dashboard | Four-tab browser interface powered by the core engine |
 
 ---
 
@@ -62,18 +61,18 @@ tool closes its own loop.
 
 **Audit mode:**
 
-1. Fetch — pulls profile info and public repos from the GitHub API
+1. Fetch — pulls profile info and up to 100 public repos from the GitHub API
 2. Score — evaluates each repo individually then rolls up to an overall profile score
 3. Breakdown — shows earned vs maximum points per category and per repo
 4. Advise — ranks weakest areas and generates prioritised recommendations
-5. Summarise — produces a recruiter-style strengths and weaknesses summary
-6. Cache — stores results locally for 24 hours for instant repeat lookups
+5. Summarise — Llama 3 via Groq writes a plain summary of the score and fixes
+6. Cache — Streamlit caches results for one hour for instant repeat lookups
 
 **Find Me Work mode:**
 
 1. Search — queries GitHub for open issues labelled good first issue in your language
 2. Score — rates each issue by comment count and age
-3. Sort — orders them with a hand-written insertion sort, best first
+3. Sort — orders them by approachability score, best first
 4. Display — shows the top 10 with direct links
 
 ---
@@ -82,23 +81,25 @@ tool closes its own loop.
 
 ```mermaid
 flowchart TD
-    A[GitHub API] --> B[User]
-    A --> C[find_issues]
+    ENV[.env / GITHUB_TOKEN + GROQ_API_KEY] --> API[GitHubAPI]
 
-    B --> D[Scorer]
-    B --> G[(cache.json)]
+    API --> USER[User]
+    API --> ISSUES[find_issues]
 
-    D --> E[Recommender]
-    E --> F[Reporter]
+    USER --> SCORER[Scorer]
+    SCORER --> RECOMMENDER[Recommender]
+    RECOMMENDER --> APP[app.py]
 
-    C --> H[approachability + my_sort]
-    C --> G
+    ISSUES --> RANK[approachability + rank_issues]
+    RANK --> APP
 
-    H --> F
+    GROQ[Groq / Llama 3] --> APP
+    APP --> BROWSER[Streamlit Dashboard]
 ```
 
-The core engine has no dependency on Streamlit. The same classes power both
-the terminal and the browser. No logic is duplicated between main.py and app.py.
+The core engine has no dependency on Streamlit. All six classes operate
+independently of the UI layer. app.py imports from the classes — the classes
+never import from app.py.
 
 ---
 
@@ -108,15 +109,12 @@ the terminal and the browser. No logic is duplicated between main.py and app.py.
 GitGauge/
 ├── github_api.py     — All GitHub API communication
 ├── models.py         — Repo and User classes
-├── scorer.py         — Profile scoring logic
-├── recommender.py    — Priority recommendation engine
-├── issues.py         — Issue search, approachability scoring, hand-written sort
-├── cache.py          — Local caching with 24-hour TTL
-├── reporter.py       — Terminal formatted output
-├── main.py           — Terminal entry point
+├── scorer.py         — Scorer class
+├── recommender.py    — Recommender class
+├── issues.py         — Issue search, approachability scoring, ranking
 ├── app.py            — Streamlit browser interface
-├── .env              — GITHUB_TOKEN (never committed)
-└── .gitignore        — .env, cache.json, __pycache__
+├── .env              — GITHUB_TOKEN and GROQ_API_KEY (never committed)
+└── .gitignore        — .env, __pycache__, *.pyc
 ```
 
 ---
@@ -128,6 +126,7 @@ GitGauge/
 - `urllib` for HTTP requests (built-in, no requests library)
 - `datetime`, `json`, `os`, `collections` — all built-in
 - Streamlit for the browser interface
+- Groq for Llama 3 AI summary
 
 ---
 
@@ -138,13 +137,14 @@ GitGauge/
 - Python 3.7+
 - A free GitHub Personal Access Token from github.com/settings/tokens
   (no scopes needed for public data)
+- A free Groq API key from console.groq.com
 
 ### Installation
 
 ```bash
 git clone https://github.com/yourusername/gitgauge.git
 cd gitgauge
-pip install streamlit python-dotenv
+pip install streamlit groq python-dotenv
 ```
 
 ### Configuration
@@ -152,7 +152,8 @@ pip install streamlit python-dotenv
 Create a `.env` file in the project root:
 
 ```
-GITHUB_TOKEN=your_token_here
+GITHUB_TOKEN=your_github_token_here
+GROQ_API_KEY=your_groq_api_key_here
 ```
 
 This file is listed in `.gitignore` and is never committed.
@@ -161,45 +162,16 @@ This file is listed in `.gitignore` and is never committed.
 
 ## Usage
 
-### Terminal
-
-```bash
-python main.py
-```
-
-```
-========================================
-           GITGAUGE
-   GitHub Developer Analytics
-========================================
-
-1) Audit a GitHub profile
-2) Find good first issues
-3) Quit
-
-Choice:
-```
-
-Option 1 — enter any GitHub username and get the full audit report including
-the overall score and grade, language breakdown with visual bars, per-category
-score breakdown, individual repo health scores, recruiter summary, prioritised
-recommendations, and top 10 beginner issues to work on next.
-
-Option 2 — enter a language and get the top 10 most approachable open
-good-first-issue tickets with direct links.
-
-### Streamlit
-
 ```bash
 streamlit run app.py
 ```
 
-Opens in the browser with four tabs:
+Opens in the browser at `http://localhost:8501` with four tabs:
 
 | Tab | Contents |
 |---|---|
-| Profile | Score, grade, language chart, bio, follower count |
-| Breakdown | Per-category progress bars, repo health score table |
+| Profile | Score, grade, language chart, bio, follower count, AI summary |
+| Score Breakdown | Per-category progress bars, repo health score table |
 | Recruiter Summary | Strengths, weaknesses, expandable recommendation cards |
 | Find Me Work | Ranked beginner issues as clickable cards |
 
@@ -208,7 +180,8 @@ Opens in the browser with four tabs:
 ## Scoring Methodology
 
 All scores are transparent heuristics based on observable signals. Nothing is
-AI-generated or predicted. Every number can be traced back to the raw API data.
+AI-generated or predicted in the scoring. Every number can be traced back to
+the raw API data.
 
 **Profile score — five categories totalling 100 points:**
 
@@ -234,6 +207,11 @@ AI-generated or predicted. Every number can be traced back to the raw API data.
 Scored from comment count (fewer is less crowded) and issue age (newer is more
 likely to have active maintainers). This is an estimate, not a prediction.
 
+**AI summary:**
+Llama 3 via Groq receives the score, grade, breakdown, and top three
+recommendation titles and writes a 3-4 sentence summary. The LLM handles
+language generation only — all scoring and ranking logic is in Python.
+
 ---
 
 ## Honest Limitations
@@ -255,11 +233,14 @@ internal culture of a project.
 Language detection is GitHub's own. Percentages reflect how GitHub classifies
 each repository, which occasionally misclassifies mixed-content repos.
 
+If the Groq API is unavailable the AI summary section shows a short caption.
+All other features continue to work — the summary is a display enhancement,
+not a core dependency.
+
 ---
 
 ## What's Next
 
 Stage 2 adds cohort mode — score an entire group of GitHub profiles, rank each
-person by percentile across categories, visualise the cohort distribution with
-Matplotlib, and export individual reports as Markdown files. Built on Pandas
-and NumPy.
+person by percentile across categories, visualise the cohort distribution, and
+export individual reports as Markdown files. Built on Pandas and NumPy.
