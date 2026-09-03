@@ -40,9 +40,9 @@ Avoid fluff and focus on useful facts.
             max_tokens=200,
         )
         return response.choices[0].message.content
-   except Exception as error:
-    st.error(f"Groq API error: {error}")
-    return None
+    except Exception as error:
+        st.error(f"Groq API error: {error}")
+        return None
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
