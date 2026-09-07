@@ -209,3 +209,4 @@ if find_button:
                 score_column.metric("Score", score_value)
                 st.caption(f"💬 {issue['comments']} comments")
                 st.divider()
+
